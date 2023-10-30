@@ -20,19 +20,17 @@ freq_idx = int(os.getenv('FREQ_IDX'))
 
 precision = "single"
 
+# load the telescope position
 tele_model = "/home/ycli/data/ska_challenge/2023/SDC3/V1/telescope.tm"
 
-#output_path = '/home/ycli/data/ska_challenge/oskar_sim/MS/Freq%03d/'%freq_idx
-#if not os.path.exists(output_path):
-#    os.makedirs(output_path)
-
+# mock id
 mock = 0
 
-#sky_model = 'FG_HI_PSshuffle_%02d'%mock
-#sky_input = '/home/DATA/suntianyang/data/%s.h5'%sky_model
+# load the sky model, HI Point Sources and Diffuse FG, target at RA 0, Dec -30
 sky_model = 'imap%02d_HI_PS_FG'%mock
 sky_input = '/home/DATA/ycli/ska_challenge/2023/sim_900_combined/%s.h5'%sky_model
 
+# estimate the transit time of the target field
 _Lon = 116.764 * u.deg
 _Lat = -26.825 * u.deg
 ska_site = EarthLocation.from_geodetic(_Lon, _Lat)
@@ -46,6 +44,8 @@ x = obs_time.unix
 transit_time = obs_time[np.argmax(field_altaz.alt.deg)]
 print(transit_time.fits)
 
+
+# load sky map and frequency information
 with h5.File(sky_input, 'r') as fp:
     imap = al.load_h5(fp, 'imap')
     imap = al.make_vect(imap, axis_names=imap.info['axes'])
@@ -55,17 +55,20 @@ dec   = imap.get_axis('dec') + dec0
 freq  = imap.get_axis('freq')
 dfreq = imap.info['freq_delta']
 
+# setup the output path
 output_path = '/home/ycli/data/ska_challenge/oskar_sim/MS/%s/Freq%5.2fMHz/'%(
         sky_model, freq[freq_idx])
 if not os.path.exists(output_path):
     os.makedirs(output_path)
 
+# convert K to Jy
 omega_B = 2. * np.pi * (imap.info['ra_delta'] * u.deg)\
                      * (imap.info['dec_delta'] * u.deg)
 Jy2K = ( 1 * u.Jy/omega_B ).to(u.K, 
        equivalencies=u.brightness_temperature(freq * u.MHz)).value
 imap /= Jy2K[:, None, None]
 
+# start OSKAR simulation
 DEC, RA = np.meshgrid(dec, ra)
 #print(RA.shape, DEC.shape)
 data = np.column_stack([RA.flat, DEC.flat, imap[freq_idx].flat])
